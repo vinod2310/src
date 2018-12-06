@@ -22,7 +22,7 @@ public class RestHandler {
             return LogHandler.queryIdr(url);
         } catch (Exception e) {
             HashMap<String,String> errorMap = new HashMap<>();
-            errorMap.put("IDR Status", "Error accessing IDR status");
+            errorMap.put("IDR sStatus", "Error accessing IDR status");
             return errorMap;
         }
     }

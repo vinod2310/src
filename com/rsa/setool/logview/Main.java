@@ -44,14 +44,15 @@ public class Main {
     private String csvFileLocation;
     JTabbedPane mainTabbedPane;
     private DownloadActionListener csvDownloadActionListener;
+    private UserEventLogChartMouseListener chartMouseListener;
+    private String idrUrl;
 
 
     public Main(String propFilePath) {
         mainTabbedPane = new JTabbedPane();
         frame = new JFrame();
-        frame.setSize(600, 400);
+        frame.setSize(500, 400);
         frame.setLayout(new GridBagLayout());
-
 
     }
     private static DefaultPieDataset createErrorsAndSuccess(ArrayList<Integer> errorsAndNotices) {
@@ -159,38 +160,14 @@ public class Main {
     }
 
 
-    private JScrollPane getErrorCodePanel(HashMap<String, String> errorCodeToDesc){
-        JPanel errorPanel = new JPanel(new GridLayout(10,1));
-
-        for(String code : errorCodeToDesc.keySet()){
-            JLabel l = new JLabel();
-            l.setText("<html>"+code+ ":"+errorCodeToDesc.get(code));
-            l.setFont(null);
-            l.setBorder(new LineBorder(Color.black));
-            errorPanel.add(l);
-
-        }
-        errorPanel.setAutoscrolls(true);
-        errorPanel.setFont(new Font("Verdana", Font.PLAIN, 10));
-        errorPanel.setBackground(Color.white);
-        errorPanel.setForeground(Color.BLUE);
-
-
-        JScrollPane scrollFrame = new JScrollPane(errorPanel);
-        scrollFrame.setBorder(BorderFactory.createTitledBorder("Error details"));
-
-        scrollFrame.setPreferredSize(new Dimension( 500,300));
-        return scrollFrame;
-
-    }
     private void addErrorCodePane(HashMap<String, String> errorCodeToDesc){
         if(errorCodePane != null){
-            mainTabbedPane.remove(errorCodePane);
+            frame.remove(errorCodePane);
         }
-        errorCodePane = getErrorCodePanel(errorCodeToDesc);
-        errorCodePane.setPreferredSize(new Dimension(400,410));
-//        frame.add(errorCodePane, DisplayConstraintManager.getConstraint("noticeArea"));
-        mainTabbedPane.addTab("ErrorCodes", errorCodePane);
+        errorCodePane = Utils.getErrorCodePanel(errorCodeToDesc);
+        errorCodePane.setPreferredSize(new Dimension(400,535));
+        frame.add(errorCodePane, DisplayConstraintManager.getConstraint("noticeArea"));
+//        mainTabbedPane.addTab("ErrorCodes", errorCodePane);
     }
     private  void addCsvPane(int gridWidth){
         if(csvPane != null){
@@ -201,37 +178,43 @@ public class Main {
         mainTabbedPane.addTab("CVS Stuff" , csvPane);
     }
 
-    private void addIdrStatus(){
-        HashMap<String, String> idrStatusMap = RestHandler.fetchIdrStatus();
+    private void addIdrStatus(String url, boolean isAtInit){
         if(idrPane != null){
             mainTabbedPane.remove(idrPane);
 
         }
         idrPane = new JPanel();
         idrPane.setPreferredSize(new Dimension( 500,500));
-        idrPane.setLayout(new GridLayout(idrStatusMap.size(),1));
+        idrPane.setLayout(new GridLayout(200,1));
         idrPane.setBackground(Color.GREEN);
 
         idrPane.setAutoscrolls(true);
         idrPane.setFont(new Font("Verdana", Font.PLAIN, 10));
-        if(idrStatusMap.containsKey("GlobalStatus.status") && idrStatusMap.get("GlobalStatus.status").equals("OK")){
-            idrPane.setBackground(Color.white);
-            idrPane.setBackground(new Color(128, 183, 148));
+        if(!isAtInit) {
+            HashMap<String, String> idrStatusMap = RestHandler.fetchIdrStatus(url);
+            idrPane.setLayout(new GridLayout(idrStatusMap.size(), 1));
 
-        }else{
-            idrPane.setBackground(new Color(224, 185, 179));
+
+            if (idrStatusMap.containsKey("GlobalStatus.status") && idrStatusMap.get("GlobalStatus.status").equals("OK")) {
+                idrPane.setBackground(Color.white);
+                idrPane.setBackground(new Color(128, 183, 148));
+
+            } else {
+                idrPane.setBackground(new Color(224, 185, 179));
+            }
+
+            idrPane.setForeground(Color.BLUE);
+
+            for (String key : idrStatusMap.keySet()) {
+                JLabel l = new JLabel();
+                l.setText(key + ":" + idrStatusMap.get(key));
+                l.setFont(null);
+                //l.setBorder(new LineBorder(Color.black));
+                idrPane.add(l);
+            }
         }
+            mainTabbedPane.addTab("IDR Stuff", idrPane);
 
-        idrPane.setForeground(Color.BLUE);
-
-        for(String key : idrStatusMap.keySet()){
-            JLabel l = new JLabel();
-            l.setText(key+ ":"+idrStatusMap.get(key));
-            l.setFont(null);
-            //l.setBorder(new LineBorder(Color.black));
-            idrPane.add(l);
-        }
-        mainTabbedPane.addTab("IDR Stuff" , idrPane);
 
     }
 
@@ -254,87 +237,13 @@ public class Main {
 
         frame.add(messageField, DisplayConstraintManager.getConstraint("textField"));
 
-        //frame.add(chartPanel, DisplayConstraintManager.getConstraint("chart"));
         addCsvPane(2);
         addUserLookup();
         chartPanel.setPopupMenu(null);
-        addIdrStatus();
+        addIdrStatus(idrUrl, true);
 
 
-        chartPanel.addChartMouseListener(new ChartMouseListener() {
-
-            @Override
-            public void chartMouseClicked(ChartMouseEvent chartMouseEvent) {
-                HashMap<String, String> errorCodeToDesc = new HashMap<>();
-                if(SwingUtilities.isRightMouseButton(chartMouseEvent.getTrigger())){
-                    ArrayList<Integer> newValues = eventHandler.getNumErrorsAndNotices();
-
-                    List<String> dd = pieDataSet.getKeys();
-                    for(String s : dd){
-                        pieDataSet.remove(s);
-
-                    }
-                    PiePlot piePlot = (PiePlot) chart.getPlot();
-                    piePlot.setSectionPaint(1, Color.red);
-                    piePlot.setSectionPaint(0, Color.blue);
-                    pieDataSet.setValue("Notices", newValues.get(1));
-                    pieDataSet.setValue("Errors", newValues.get(0));
-
-                }else {
-                    PieSectionEntity pe = (PieSectionEntity) chartMouseEvent.getEntity();
-
-                    pieDataSet.remove("Errors");
-                    pieDataSet.remove("Notices");
-                    PiePlot piePlot = (PiePlot) chart.getPlot();
-                    piePlot.setSectionPaint(1, Color.red);
-                    piePlot.setSectionPaint(0, Color.blue);
-                    if (pe.getSectionKey().equals("Errors")) {
-                        HashMap<String, Integer> errorMap = eventHandler.getErrorNumbersByCatagory();
-                        int i = 0;Color c = new Color(100, 52, 28);
-                        int r = 0, g = 0, b = 0;
-                        for (String code : errorMap.keySet()) {
-                            piePlot.setSectionPaint(i, c);
-                            i++; r += 10; g += 10; b+= 10;
-                            c = new Color(r,g,b);
-                            pieDataSet.setValue(code, errorMap.get(code));
-                            errorCodeToDesc.put(code, UserEventsDB.getEventDescreption(Integer.parseInt(code)));
-                        }
-                    } else {
-
-                        int i = 0;Color c = new Color(83, 100, 35);
-                        int r = 0, g = 0, b = 0;
-
-
-                        HashMap<String, Integer> noticesMap = eventHandler.getNoticeNumbersByCatagory();
-                        for (String code : noticesMap.keySet()) {
-                            pieDataSet.setValue(code, noticesMap.get(code));
-                            piePlot.setSectionPaint(i, c);
-                            i++; r += 10; g += 10; b+= 10;
-                            c = new Color(r,g,b);
-                            errorCodeToDesc.put(code, UserEventsDB.getEventDescreption(Integer.parseInt(code)));
-                        }
-                    }
-
-                }
-                addErrorCodePane(errorCodeToDesc);
-
-
-
-
-
-                frame.repaint();
-//                addCsvPane(4);
-                frame.pack();
-
-            }
-
-            @Override
-            public void chartMouseMoved(ChartMouseEvent chartMouseEvent) {
-
-            }
-        });
-
-        frame.add(mainTabbedPane);
+        frame.add(mainTabbedPane, DisplayConstraintManager.getConstraint("chart"));
         frame.pack();
         frame.setVisible(true);
 
@@ -362,25 +271,23 @@ public class Main {
     }
 
     public void init(String propFilePath) {
-
         Properties prop = new Properties();
         messageField = new Label("Initialising...");
         csvDownloadActionListener = new DownloadActionListener();
-//        createTabbed(new ArrayList<Integer>());
-        createDemoPanel(new ArrayList<Integer>());
-
-
+        createDemoPanel(new ArrayList<>());
         InputStream is = getClass().getClassLoader().getResourceAsStream(propFilePath);
         if(is != null ){
             try {
                 prop.load(is);
                 url = (String) prop.get("url");
+                idrUrl = (String) prop.get("idrurl");
                 keyFile = (String) prop.get("keyfile");
                 companyName = (String) prop.get("companyName");
                 frame.setTitle(companyName);
                 csvFileLocation = (String)prop.get("csvFile");
                 URL iconFileUrl = getClass().getResource( "/"+(String)prop.get("iconfile"));
                 Image image = Toolkit.getDefaultToolkit().getImage( iconFileUrl );
+                addIdrStatus(idrUrl, false);
                 frame.setIconImage(image);
                 frame.repaint();
 
@@ -413,6 +320,7 @@ public class Main {
 
             eventHandler = new UserEventHandler(RestHandler.fetchData(url, keyFile, Utils.getCurrentTimeinGoodForm() ,
                     Utils.getSevenDaysBeforeToday()));
+
             ArrayList<Integer> newValues = eventHandler.getNumErrorsAndNotices();
             pieDataSet.setValue("Notices", newValues.get(1));
             pieDataSet.setValue("Errors", newValues.get(0));
@@ -425,6 +333,11 @@ public class Main {
             messageField.setText(e.getCause().getMessage());
             System.out.println(url + " " + Utils.getCurrentTimeinGoodForm() + " " + Utils.getSevenDaysBeforeToday());
         }
+        chartMouseListener = new UserEventLogChartMouseListener(
+                eventHandler,
+                pieDataSet,
+                chart, frame);
+        chartPanel.addChartMouseListener(chartMouseListener);
 
 
     }
